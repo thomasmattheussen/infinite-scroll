@@ -6,7 +6,7 @@
 #
 
 # Minifiy the script
-yui jquery.infinitescroll.js -o jquery.infinitescroll.min.js
+uglifyjs jquery.infinitescroll.js -o jquery.infinitescroll.min.js
 
 # Copy scripts into the WordPress plugin
 cp jquery.infinitescroll.js ./wordpress-plugin/js/front-end/jquery.infinitescroll.dev.js

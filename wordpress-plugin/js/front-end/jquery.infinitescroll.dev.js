@@ -42,6 +42,7 @@
             isDestroyed: false,
             isDone: false, // For when it goes all the way through the archive.
             isPaused: false,
+            isBeyondMaxPage: false,
             currPage: 1
         },
         debug: false,
@@ -56,7 +57,9 @@
         pathParse: undefined,
         dataType: 'html',
         appendCallback: true,
-        bufferPx: 40,
+        bufferPx: function() {
+        	return 40;
+        },
         errorCallback: function () { },
         infid: 0, //Instance ID
         pixelsFromNavToBottom: undefined,
@@ -67,7 +70,7 @@
 
     $.infinitescroll.prototype = {
 
-        /*	
+        /*
             ----------------------------
             Private methods
             ----------------------------
@@ -143,6 +146,7 @@
             // computed as: height of the document + top offset of container - top offset of nav link
             if(opts.pixelsFromNavToBottom === undefined) {
 				opts.pixelsFromNavToBottom = $(document).height() - $(opts.navSelector).offset().top;
+				this._debug("pixelsFromNavToBottom: " + opts.pixelsFromNavToBottom);
 			}
 
 			var self = this;
@@ -159,7 +163,8 @@
 
             // determine loading.finished actions
             opts.loading.finished = opts.loading.finished || function() {
-                opts.loading.msg.fadeOut(opts.loading.speed);
+                if (!opts.state.isBeyondMaxPage)
+                    opts.loading.msg.fadeOut(opts.loading.speed);
             };
 
 			// callback loading
@@ -200,11 +205,10 @@
 
 		_prefill: function infscr_prefill() {
 			var instance = this;
-			var $document = $(document);
 			var $window = $(window);
 
 			function needsPrefill() {
-				return ($document.height() <= $window.height());
+				return (instance.options.contentSelector.height() <= $window.height());
 			}
 
 			this._prefill = function() {
@@ -262,7 +266,7 @@
             } else if (path.match(/^(.*?)\b2\b(.*?$)/)) {
                 path = path.match(/^(.*?)\b2\b(.*?$)/).slice(1);
 
-                // if there is any 2 in the url at all.    
+                // if there is any 2 in the url at all.
             } else if (path.match(/^(.*?)2(.*?$)/)) {
 
                 // page= is used in django:
@@ -309,13 +313,14 @@
 
             this._debug('Error', xhr);
 
-            if (xhr === 'end') {
+            if (xhr === 'end' || opts.state.isBeyondMaxPage) {
                 this._showdonemsg();
             }
 
             opts.state.isDone = true;
             opts.state.currPage = 1; // if you need to go back to this instance
             opts.state.isPaused = false;
+            opts.state.isBeyondMaxPage = false;
             this._binding('unbind');
 
         },
@@ -374,7 +379,7 @@
 
             // smooth scroll to ease in the new content
             if (opts.animate) {
-                var scrollTo = $(window).scrollTop() + $('#infscr-loading').height() + opts.extraScrollPx + 'px';
+                var scrollTo = $(window).scrollTop() + $(opts.loading.msg).height() + opts.extraScrollPx + 'px';
                 $('html,body').animate({ scrollTop: scrollTo }, 800, function () { opts.state.isDuringAjax = false; });
             }
 
@@ -403,7 +408,7 @@
             this._debug('math:', pixelsFromWindowBottomToBottom, opts.pixelsFromNavToBottom);
 
             // if distance remaining in the scroll (including buffer) is less than the orignal nav to bottom....
-            return (pixelsFromWindowBottomToBottom - opts.bufferPx < opts.pixelsFromNavToBottom);
+            return (pixelsFromWindowBottomToBottom - opts.bufferPx() < opts.pixelsFromNavToBottom);
 
         },
 
@@ -481,7 +486,7 @@
                 $(this).parent().fadeOut(opts.loading.speed);
             });
 
-            // user provided callback when done    
+            // user provided callback when done
             opts.errorCallback.call($(opts.contentSelector)[0],'done');
         },
 
@@ -497,7 +502,7 @@
             return true;
         },
 
-        /*	
+        /*
             ----------------------------
             Public methods
             ----------------------------
@@ -533,14 +538,15 @@
 			// increment the URL bit. e.g. /page/3/
 			opts.state.currPage++;
 
-            // Manually control maximum page 
+            // Manually control maximum page
             if ( opts.maxPage != undefined && opts.state.currPage > opts.maxPage ){
+                opts.state.isBeyondMaxPage = true;
                 this.destroy();
                 return;
             }
 
 			// if we're dealing with a table we can't use DIVs
-			box = $(opts.contentSelector).is('table') ? $('<tbody/>') : $('<div/>');
+			box = $(opts.contentSelector).is('table, tbody') ? $('<tbody/>') : $('<div/>');
 
 			desturl = (typeof path === 'function') ? path(opts.state.currPage) : path.join(opts.state.currPage);
 			instance._debug('heading into ajax', desturl);
@@ -686,7 +692,7 @@
     };
 
 
-    /*	
+    /*
         ----------------------------
         Infinite Scroll function
         ----------------------------
@@ -700,7 +706,7 @@
         - https://github.com/jsor/jcarousel/blob/master/lib/jquery.jcarousel.js
 
         Masonry
-        - https://github.com/desandro/masonry/blob/master/jquery.masonry.js		
+        - https://github.com/desandro/masonry/blob/master/jquery.masonry.js
 
 */
 
@@ -711,7 +717,7 @@
 
         switch (thisCall) {
 
-            // method 
+            // method
             case 'string':
                 var args = Array.prototype.slice.call(arguments, 1);
 
@@ -735,7 +741,7 @@
 
             break;
 
-            // creation 
+            // creation
             case 'object':
 
                 this.each(function () {
@@ -770,7 +776,7 @@
 
 
 
-    /* 
+    /*
      * smartscroll: debounced scroll event for jQuery *
      * https://github.com/lukeshumard/smartscroll
      * Based on smartresize by @louis_remi: https://github.com/lrbabe/jquery.smartresize.js *
